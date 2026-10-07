@@ -1,0 +1,11 @@
+# docker-compose.yml — Feature 1: Consulta Pública con Captcha
+#
+# HU-19: archivo inicial, sin servicios todavía.
+# Se completa en HU-21 con:
+#   - mysql-replica : réplica MySQL del monolito (HU-22)
+#   - api           : ApiRest de consulta, solo ve la réplica (HU-23)
+#   - web           : página pública con captcha (HU-25)
+#
+# Las variables se leen del archivo .env (ver .env.example).
+
+services: {}
