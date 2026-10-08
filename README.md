@@ -56,7 +56,7 @@ El diagrama completo de la Fase 2 está en [`docs/arquitectura-fase2.png`](docs/
 Requisitos: Docker y Docker Compose, Git.
 
 ```bash
-git clone https://github.com/<OWNER>/oficina-agua-consulta-publica.git
+git clone https://github.com/KravenTA/oficina-agua-consulta-publica.git
 cd oficina-agua-consulta-publica
 cp .env.example .env        # ajustar valores (nunca subir el .env)
 docker compose up --build   # disponible desde HU-21
