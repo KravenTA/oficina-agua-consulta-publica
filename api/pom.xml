@@ -62,6 +62,19 @@
   </dependencies>
 
   <build>
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+      </resource>
+      <!-- Publica el contrato en el classpath como /openapi/consulta-api.yaml (lo lee Swagger UI) -->
+      <resource>
+        <directory>openapi</directory>
+        <targetPath>static/openapi</targetPath>
+        <includes>
+          <include>consulta-api.yaml</include>
+        </includes>
+      </resource>
+    </resources>
     <plugins>
       <plugin>
         <groupId>org.springframework.boot</groupId>
@@ -101,31 +114,6 @@
         </executions>
       </plugin>
 
-      <!-- Copia el contrato al classpath para que Swagger UI lo sirva en /openapi/consulta-api.yaml -->
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-resources-plugin</artifactId>
-        <executions>
-          <execution>
-            <id>copiar-contrato</id>
-            <phase>process-resources</phase>
-            <goals>
-              <goal>copy-resources</goal>
-            </goals>
-            <configuration>
-              <outputDirectory>${project.build.outputDirectory}/static/openapi</outputDirectory>
-              <resources>
-                <resource>
-                  <directory>${project.basedir}/openapi</directory>
-                  <includes>
-                    <include>consulta-api.yaml</include>
-                  </includes>
-                </resource>
-              </resources>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
     </plugins>
   </build>
 </project>

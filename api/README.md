@@ -38,8 +38,12 @@ cd api
 mvn spring-boot:run
 ```
 
-Abrir <http://localhost:8081/swagger-ui.html>. Muestra el YAML del contrato.
-El puerto se cambia con la variable `API_PORT`.
+Abrir <http://localhost:8081/swagger-ui.html> (redirige a `/swagger-ui/index.html`).
+Muestra el YAML del contrato. El puerto se cambia con la variable `API_PORT`.
+
+Si Swagger UI no carga, primero comprobar que el contrato llega al classpath:
+<http://localhost:8081/openapi/consulta-api.yaml> debe mostrar el YAML.
+No agregar `springdoc.api-docs.enabled=false`: apaga también Swagger UI.
 
 Requisitos: JDK 21 y Maven 3.9+.
 
