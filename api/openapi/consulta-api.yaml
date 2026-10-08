@@ -1,0 +1,262 @@
+openapi: 3.0.3
+info:
+  title: ApiRest de Consulta Pública — Oficina del Agua
+  version: 1.0.0
+  description: |
+    Contrato del ApiRest de la **Feature 1 (Consulta Pública con Captcha)**.
+
+    Permite al cliente final consultar su estado de cuenta con el **número de serie
+    de su contador**, sin iniciar sesión.
+
+    **Reglas del servicio**
+    - Es de **solo lectura** y consulta únicamente la **réplica MySQL**, nunca la
+      base de datos original del monolito.
+    - Solo lo invoca la capa Web (BFF) por http, después de validar el captcha en
+      servidor. El navegador nunca llama directamente a este servicio.
+    - Limita las consultas **por IP** (rate limit), de forma independiente al captcha.
+    - No expone datos sensibles: DPI, NIT, teléfono, correo ni dirección.
+
+    **Contrato primero:** este archivo es la fuente de verdad. Las interfaces y
+    los DTOs de Java se generan con `openapi-generator-maven-plugin`; el equipo
+    implementa las interfaces.
+servers:
+  - url: http://localhost:8081
+    description: Local (Docker Compose)
+# Sin autenticación a propósito: es una consulta pública. La protección es el captcha
+# (validado en la capa Web) y el rate limit por IP (en este servicio).
+security: []
+tags:
+  - name: Consulta
+    description: Consulta pública del estado de cuenta
+
+paths:
+  /api/v1/consulta/contadores/{numeroSerie}/estado-cuenta:
+    get:
+      tags: [Consulta]
+      operationId: obtenerEstadoCuenta
+      summary: Obtener el estado de cuenta de un contador
+      description: |
+        Devuelve el cliente (con el nombre parcialmente oculto) y los recibos del
+        contador identificado por su número de serie, junto con un resumen de
+        montos.
+
+        - Los recibos **anulados no se incluyen**.
+        - Un recibo `PENDIENTE` cuya fecha de vencimiento ya pasó se devuelve como
+          `VENCIDO`. El monolito no actualiza ese estado por su cuenta, así que el
+          ApiRest lo calcula al responder.
+        - Se responde `404` tanto si el número de serie no existe como si el
+          contador está inactivo, para no revelar cuáles códigos están registrados.
+      parameters:
+        - name: numeroSerie
+          in: path
+          required: true
+          description: Número de serie del contador (el código que el cliente tiene en su recibo).
+          schema:
+            type: string
+            minLength: 3
+            maxLength: 30
+            pattern: '^[A-Za-z0-9-]+$'
+          example: CTR-0001
+      responses:
+        '200':
+          description: Estado de cuenta encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EstadoCuenta'
+        '400':
+          description: El número de serie tiene un formato inválido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorRespuesta'
+              example:
+                codigo: SERIE_INVALIDA
+                mensaje: El número de serie solo puede contener letras, números y guiones (3 a 30 caracteres).
+                fecha: '2026-10-07T21:40:00Z'
+        '404':
+          description: No existe un contador activo con ese número de serie.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorRespuesta'
+              example:
+                codigo: CONTADOR_NO_ENCONTRADO
+                mensaje: No se encontró un contador con ese número de serie.
+                fecha: '2026-10-07T21:40:00Z'
+        '429':
+          description: Se superó el límite de consultas permitido para esta IP.
+          headers:
+            Retry-After:
+              description: Segundos que debe esperar el cliente antes de volver a intentar.
+              schema:
+                type: integer
+                minimum: 1
+                example: 45
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorRespuesta'
+              example:
+                codigo: LIMITE_EXCEDIDO
+                mensaje: Demasiadas consultas. Intente de nuevo en unos segundos.
+                fecha: '2026-10-07T21:40:00Z'
+        '500':
+          description: Error interno. No incluye detalles técnicos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorRespuesta'
+              example:
+                codigo: ERROR_INTERNO
+                mensaje: No se pudo completar la consulta. Intente más tarde.
+                fecha: '2026-10-07T21:40:00Z'
+        '503':
+          description: La réplica de base de datos no está disponible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorRespuesta'
+              example:
+                codigo: SERVICIO_NO_DISPONIBLE
+                mensaje: El servicio de consulta no está disponible por el momento.
+                fecha: '2026-10-07T21:40:00Z'
+
+components:
+  schemas:
+    EstadoCuenta:
+      type: object
+      description: Estado de cuenta de un contador.
+      required: [contador, cliente, recibos, resumen]
+      properties:
+        contador:
+          $ref: '#/components/schemas/Contador'
+        cliente:
+          $ref: '#/components/schemas/Cliente'
+        recibos:
+          type: array
+          description: Recibos del contador, del más reciente al más antiguo.
+          items:
+            $ref: '#/components/schemas/Recibo'
+        resumen:
+          $ref: '#/components/schemas/Resumen'
+        consultadoEn:
+          type: string
+          format: date-time
+          description: Momento en que se generó la respuesta.
+
+    Contador:
+      type: object
+      required: [numeroSerie]
+      properties:
+        numeroSerie:
+          type: string
+          example: CTR-0001
+        tipoServicio:
+          type: string
+          nullable: true
+          description: Tipo de servicio del contador, tal como lo define el monolito.
+          example: media_paja
+
+    Cliente:
+      type: object
+      description: Solo datos no sensibles. No incluye DPI, NIT, teléfono, correo ni dirección.
+      required: [nombreParcial]
+      properties:
+        nombreParcial:
+          type: string
+          description: Nombre con las palabras después de la primera abreviadas, para no exponer el nombre completo.
+          example: María L*** G***
+
+    Recibo:
+      type: object
+      required: [numero, periodo, fechaEmision, total, estado]
+      properties:
+        numero:
+          type: string
+          description: Número correlativo del recibo.
+        periodo:
+          $ref: '#/components/schemas/Periodo'
+        fechaEmision:
+          type: string
+          format: date
+        fechaVencimiento:
+          type: string
+          format: date
+          nullable: true
+        consumoM3:
+          type: number
+          nullable: true
+          description: Consumo del período en metros cúbicos.
+          example: 14.5
+        total:
+          type: number
+          description: Total a pagar del recibo, en quetzales (GTQ), con 2 decimales.
+          example: 45.00
+        estado:
+          $ref: '#/components/schemas/EstadoRecibo'
+
+    Periodo:
+      type: object
+      required: [anio, mes]
+      properties:
+        anio:
+          type: integer
+          example: 2026
+        mes:
+          type: integer
+          minimum: 1
+          maximum: 12
+          example: 9
+
+    EstadoRecibo:
+      type: string
+      description: |
+        - `PENDIENTE`: emitido y aún dentro del plazo de pago.
+        - `VENCIDO`: sin pagar y con la fecha de vencimiento ya pasada.
+        - `PAGADO`: cancelado.
+      enum: [PENDIENTE, VENCIDO, PAGADO]
+
+    Resumen:
+      type: object
+      required: [totalEmitido, totalPagado, totalPendiente, recibosPendientes, recibosVencidos]
+      properties:
+        totalEmitido:
+          type: number
+          description: Suma de todos los recibos incluidos en la respuesta.
+          example: 135.00
+        totalPagado:
+          type: number
+          example: 90.00
+        totalPendiente:
+          type: number
+          description: Suma de los recibos `PENDIENTE` y `VENCIDO`. Es lo que el cliente debe.
+          example: 45.00
+        recibosPendientes:
+          type: integer
+          description: Cantidad de recibos `PENDIENTE`.
+          example: 1
+        recibosVencidos:
+          type: integer
+          description: Cantidad de recibos `VENCIDO`.
+          example: 0
+
+    ErrorRespuesta:
+      type: object
+      description: Formato único de error. Nunca incluye trazas ni detalles internos.
+      required: [codigo, mensaje, fecha]
+      properties:
+        codigo:
+          type: string
+          description: Código estable, pensado para que la capa Web decida qué mensaje mostrar.
+          enum:
+            - SERIE_INVALIDA
+            - CONTADOR_NO_ENCONTRADO
+            - LIMITE_EXCEDIDO
+            - ERROR_INTERNO
+            - SERVICIO_NO_DISPONIBLE
+        mensaje:
+          type: string
+        fecha:
+          type: string
+          format: date-time
