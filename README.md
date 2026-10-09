@@ -50,19 +50,43 @@ El diagrama completo de la Fase 2 está en [`docs/arquitectura-fase2.png`](docs/
 
 ## Cómo levantarla
 
-> **Estado:** estructura inicial (HU-19). El `docker-compose.yml` todavía no define
-> servicios; se completa en HU-21. Estos pasos quedarán válidos al terminar ese HU.
-
-Requisitos: Docker y Docker Compose, Git.
+Requisitos: Docker Desktop (o Docker y Docker Compose) y Git.
 
 ```bash
 git clone https://github.com/KravenTA/oficina-agua-consulta-publica.git
 cd oficina-agua-consulta-publica
 cp .env.example .env        # ajustar valores (nunca subir el .env)
-docker compose up --build   # disponible desde HU-21
+docker compose up --build
 ```
 
-Swagger UI del ApiRest (disponible desde HU-20): `http://localhost:<API_PORT>/swagger-ui.html`
+En Windows (CMD) el segundo paso es `copy .env.example .env`.
+
+| Servicio | Qué es | Puerto en tu máquina | Estado |
+|---|---|---|---|
+| `mysql-replica` | Réplica MySQL del monolito | `3307` | Arranca vacía hasta la HU-22 |
+| `api` | ApiRest de consulta | `8081` | Swagger UI en <http://localhost:8081/swagger-ui.html> |
+| `web` | Página pública con captcha | `3000` | Perfil `web`, disponible desde la HU-25 |
+
+**Orden de arranque:** primero `mysql-replica` (espera a estar saludable), luego `api`,
+luego `web`. Compose lo resuelve solo con `depends_on`.
+
+**Aislamiento:** los servicios viven en la red `consulta-net`. La instancia MySQL del
+monolito no está en esa red y el ApiRest solo conoce el host `mysql-replica`.
+El monolito no se modifica.
+
+Comandos útiles:
+
+```bash
+docker compose ps                    # estado de los servicios
+docker compose logs -f api           # ver el log del ApiRest
+docker compose --profile web up      # incluir la capa Web (cuando exista, HU-25)
+docker compose down                  # detener
+docker compose down -v               # detener y borrar los datos de la réplica
+```
+
+El puerto de la réplica es `3307` y no `3306` para no chocar con el MySQL local
+(Laragon, XAMPP). Si algún puerto ya está en uso, cámbialo en tu `.env`
+(`API_PORT`, `WEB_PORT`, `REPLICA_DB_HOST_PORT`).
 
 ## Flujo de trabajo del equipo
 
