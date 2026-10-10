@@ -40,7 +40,8 @@ El diagrama completo de la Fase 2 está en [`docs/arquitectura-fase2.png`](docs/
 .
 ├── api/                  ApiRest de consulta (Spring Boot) — HU-20, HU-23, HU-24
 ├── web/                  Capa Web con captcha — HU-25, HU-26, HU-27
-├── db/replica/           Scripts y config de la réplica MySQL — HU-22
+├── db/replica/           Réplica MySQL: usuario de solo lectura y carga — HU-22
+├── scripts/              Scripts de apoyo (refrescar la réplica)
 ├── docs/                 Diagramas y documentación
 ├── .github/              Plantilla de pull request
 ├── docker-compose.yml    Orquestación de la feature — HU-21
@@ -63,7 +64,7 @@ En Windows (CMD) el segundo paso es `copy .env.example .env`.
 
 | Servicio | Qué es | Puerto en tu máquina | Estado |
 |---|---|---|---|
-| `mysql-replica` | Réplica MySQL del monolito | `3307` | Arranca vacía hasta la HU-22 |
+| `mysql-replica` | Réplica MySQL del monolito | `3307` | Se carga con `scripts\refrescar-replica.ps1` (ver abajo) |
 | `api` | ApiRest de consulta | `8081` | Swagger UI en <http://localhost:8081/swagger-ui.html> |
 | `web` | Página pública con captcha | `3000` | Perfil `web`, disponible desde la HU-25 |
 
@@ -73,6 +74,19 @@ luego `web`. Compose lo resuelve solo con `depends_on`.
 **Aislamiento:** los servicios viven en la red `consulta-net`. La instancia MySQL del
 monolito no está en esa red y el ApiRest solo conoce el host `mysql-replica`.
 El monolito no se modifica.
+
+### Cargar la réplica con los datos del monolito
+
+La réplica arranca vacía. Se llena con un dump de la base `oficina_agua` del monolito
+(MySQL de Laragon, que debe estar iniciado):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\refrescar-replica.ps1
+```
+
+Ese mismo comando **refresca** la réplica cuando cambian los datos. El dump no se sube a
+git. El ApiRest se conecta con un usuario de solo lectura. Detalles y verificación en
+[`db/replica/README.md`](db/replica/README.md).
 
 Comandos útiles:
 

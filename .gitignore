@@ -37,6 +37,8 @@ next-env.d.ts
 #-------------------------
 docker-compose.override.yml
 db/replica/data/
+# Dump del monolito: puede traer datos personales, nunca se versiona
+db/replica/init/*.sql
 *.dump
 *.sql.gz
 
