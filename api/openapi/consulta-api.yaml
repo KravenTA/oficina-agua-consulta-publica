@@ -247,16 +247,19 @@ components:
       required: [codigo, mensaje, fecha]
       properties:
         codigo:
-          type: string
-          description: Código estable, pensado para que la capa Web decida qué mensaje mostrar.
-          enum:
-            - SERIE_INVALIDA
-            - CONTADOR_NO_ENCONTRADO
-            - LIMITE_EXCEDIDO
-            - ERROR_INTERNO
-            - SERVICIO_NO_DISPONIBLE
+          $ref: '#/components/schemas/CodigoError'
         mensaje:
           type: string
         fecha:
           type: string
           format: date-time
+
+    CodigoError:
+      type: string
+      description: Código estable, pensado para que la capa Web decida qué mensaje mostrar.
+      enum:
+        - SERIE_INVALIDA
+        - CONTADOR_NO_ENCONTRADO
+        - LIMITE_EXCEDIDO
+        - ERROR_INTERNO
+        - SERVICIO_NO_DISPONIBLE
