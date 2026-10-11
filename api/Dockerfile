@@ -4,7 +4,7 @@ WORKDIR /build
 COPY pom.xml .
 COPY openapi ./openapi
 COPY src ./src
-RUN mvn -B -q -DskipTests package
+RUN mvn -B -q -Dmaven.test.skip=true package
 
 # --- Etapa 2: imagen final, solo con el JRE ---
 FROM eclipse-temurin:21-jre
