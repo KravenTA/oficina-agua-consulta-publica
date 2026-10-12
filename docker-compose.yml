@@ -62,6 +62,9 @@ services:
       REPLICA_DB_PASSWORD: ${REPLICA_DB_PASSWORD}
       RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-10}
       RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
+      # La capa Web envia la IP real del cliente en X-Forwarded-For; sin esto, todas las
+      # consultas parecerian venir de la IP de la Web y compartirian un solo cupo.
+      RATE_LIMIT_TRUST_FORWARDED_FOR: ${RATE_LIMIT_TRUST_FORWARDED_FOR:-true}
     ports:
       - "${API_PORT:-8081}:${API_PORT:-8081}"
     depends_on:
