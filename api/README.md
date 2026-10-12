@@ -6,7 +6,7 @@ Servicio de **solo lectura** sobre la réplica MySQL.
 |---|---|
 | HU-20 | Contrato OpenAPI (`openapi/`), generación de interfaces y DTOs, Swagger UI |
 | HU-23 | Consulta de estado de cuenta por número de serie del contador (implementado) |
-| HU-24 | Rate limit por IP (429 + `Retry-After`) |
+| HU-24 | Rate limit por IP (429 + `Retry-After`) (implementado) |
 
 ## Contrato (contract-first)
 
@@ -48,6 +48,48 @@ Reglas de la respuesta:
   correo ni dirección.
 - La respuesta lleva `Cache-Control: no-store`.
 
+## Rate limit por IP
+
+Segunda barrera contra el scraping del padrón, **independiente del captcha**: el ApiRest no
+sabe nada del captcha, solo cuenta las consultas de cada IP. Si una IP supera su cupo, el
+ApiRest responde `429` con la cabecera `Retry-After` (segundos que debe esperar) y el
+cuerpo de error `LIMITE_EXCEDIDO`.
+
+| Variable | Por defecto | Qué hace |
+|---|---|---|
+| `RATE_LIMIT_MAX_REQUESTS` | `10` | Consultas permitidas por IP dentro de la ventana |
+| `RATE_LIMIT_WINDOW_SECONDS` | `60` | Tamaño de la ventana, en segundos |
+| `RATE_LIMIT_TRUST_FORWARDED_FOR` | `false` (en Docker Compose: `true`) | Leer la IP real del cliente desde `X-Forwarded-For` |
+
+Cómo funciona:
+
+- Ventana **deslizante**: se permiten N consultas en cualquier ventana de T segundos.
+- Solo protege `/api/*`; Swagger UI y el contrato no cuentan.
+- Cuentan **todas** las consultas, también las que terminan en `404` (recorrer números de
+  serie al azar es justo lo que se quiere frenar).
+- Las consultas rechazadas no consumen cupo: insistir no alarga el bloqueo.
+- Valores inválidos (por ejemplo `0`) hacen que el servicio no arranque.
+
+**IP real del cliente.** El ApiRest recibe las consultas desde la capa Web, así que la IP de
+la conexión siempre sería la de la Web y todos los clientes compartirían un solo cupo. Por
+eso la capa Web (HU-26) debe enviar la IP real en `X-Forwarded-For`, **reemplazando** lo que
+traiga la petición del navegador. El ApiRest usa la última entrada de la cabecera.
+`RATE_LIMIT_TRUST_FORWARDED_FOR=true` solo es seguro si el ApiRest no es accesible
+directamente desde internet; si lo fuera, cualquiera podría falsear la cabecera.
+
+Limitación: el contador vive en memoria de cada instancia. Con varias instancias del ApiRest
+cada una llevaría su propia cuenta.
+
+Probarlo a mano (con `docker compose up -d`; el límite por defecto es 10 por minuto):
+
+```powershell
+1..12 | ForEach-Object { curl.exe -s -o NUL -w "%{http_code}\n" http://localhost:8081/api/v1/consulta/contadores/CTR-0003/estado-cuenta }
+curl.exe -i http://localhost:8081/api/v1/consulta/contadores/CTR-0003/estado-cuenta
+```
+
+Las primeras 10 respuestas son `200` y las siguientes `429`. El segundo comando muestra la
+cabecera `Retry-After`. Para cambiar el límite, editar el `.env` y correr `docker compose up -d`.
+
 ## Configuración
 
 Variables de entorno (ya definidas en `docker-compose.yml` y `.env.example`):
@@ -68,8 +110,9 @@ cd api
 mvn test
 ```
 
-Cubren el cálculo de estados y resumen, la zona horaria, el enmascarado del nombre y los
-códigos 200, 400, 404, 500 y 503 del controlador. No necesitan base de datos.
+Cubren el cálculo de estados y resumen, la zona horaria, el enmascarado del nombre, los
+códigos 200, 400, 404, 500 y 503 del controlador y el rate limit (ventana deslizante,
+concurrencia, `Retry-After`, IP por cliente). No necesitan base de datos.
 
 ## Generar interfaces y DTOs
 
