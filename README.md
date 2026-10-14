@@ -39,7 +39,7 @@ El diagrama completo de la Fase 2 está en [`docs/arquitectura-fase2.png`](docs/
 ```
 .
 ├── api/                  ApiRest de consulta (Spring Boot) — HU-20, HU-23, HU-24
-├── web/                  Capa Web con captcha — HU-25, HU-26, HU-27
+├── web/                  Capa Web (Next.js) con captcha — HU-25, HU-26, HU-27
 ├── db/replica/           Réplica MySQL: usuario de solo lectura y carga — HU-22
 ├── scripts/              Scripts de apoyo (refrescar la réplica)
 ├── docs/                 Diagramas y documentación
@@ -66,7 +66,7 @@ En Windows (CMD) el segundo paso es `copy .env.example .env`.
 |---|---|---|---|
 | `mysql-replica` | Réplica MySQL del monolito | `3307` | Se carga con `scripts\refrescar-replica.ps1` (ver abajo) |
 | `api` | ApiRest de consulta | `8081` | Swagger UI en <http://localhost:8081/swagger-ui.html> |
-| `web` | Página pública con captcha | `3000` | Perfil `web`, disponible desde la HU-25 |
+| `web` | Página pública con captcha (Next.js) | `3000` | <http://localhost:3000> |
 
 **Orden de arranque:** primero `mysql-replica` (espera a estar saludable), luego `api`,
 luego `web`. Compose lo resuelve solo con `depends_on`.
@@ -93,7 +93,7 @@ Comandos útiles:
 ```bash
 docker compose ps                    # estado de los servicios
 docker compose logs -f api           # ver el log del ApiRest
-docker compose --profile web up      # incluir la capa Web (cuando exista, HU-25)
+docker compose logs -f web           # ver el log de la capa Web
 docker compose down                  # detener
 docker compose down -v               # detener y borrar los datos de la réplica
 ```
