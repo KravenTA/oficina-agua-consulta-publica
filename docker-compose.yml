@@ -8,7 +8,7 @@
 # Orden de arranque:
 #   1. mysql-replica  -> debe quedar "healthy"
 #   2. api            -> espera a la réplica
-#   3. web            -> espera al api (perfil "web", disponible desde HU-25)
+#   3. web            -> espera al api (Next.js: pagina publica con captcha)
 #
 # Aislamiento: todos los servicios viven en la red "consulta-net". En esta red NO
 # existe la instancia MySQL del monolito, y el ApiRest solo conoce el host
@@ -73,12 +73,8 @@ services:
     networks:
       - consulta-net
 
-  # --- Capa Web con captcha (se implementa en HU-25 / HU-26) ----------------------
-  # Perfil "web": no arranca con `docker compose up` hasta que exista web/Dockerfile.
-  # Cuando la HU-25 lo agregue, se quita la línea "profiles" y arranca junto al resto.
-  # Mientras tanto: docker compose --profile web up --build
+  # --- Capa Web con captcha (Next.js: pagina publica y BFF) ---------------------------
   web:
-    profiles: ["web"]
     build:
       context: ./web
     container_name: consulta-web
