@@ -85,6 +85,9 @@ services:
       CAPTCHA_PROVIDER: ${CAPTCHA_PROVIDER:-recaptcha}
       CAPTCHA_SITE_KEY: ${CAPTCHA_SITE_KEY}
       CAPTCHA_SECRET_KEY: ${CAPTCHA_SECRET_KEY}
+      # false: Next.js recibe conexiones directas del navegador y usa la IP real de la conexion.
+      # true: solo si hay un proxy de confianza delante que ya pone la IP correcta en X-Forwarded-For.
+      TRUST_PROXY_HEADERS: ${TRUST_PROXY_HEADERS:-false}
     ports:
       - "${WEB_PORT:-3000}:3000"
     depends_on:

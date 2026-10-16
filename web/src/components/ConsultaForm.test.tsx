@@ -136,7 +136,8 @@ describe('ConsultaForm', () => {
     [400, /no es válido/i],
     [404, /no encontramos un contador/i],
     [429, /demasiadas consultas/i],
-    [501, /todavía no está disponible/i],
+    [403, /no pudimos validar la verificación/i],
+    [503, /no está disponible por el momento/i],
     [500, /no se pudo completar/i],
   ])('muestra un mensaje claro cuando el servidor responde %i', async (status, mensaje) => {
     const usuario = userEvent.setup();

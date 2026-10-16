@@ -26,8 +26,10 @@ function mensajeDeError(status: number): string {
       return 'No encontramos un contador con ese código.';
     case 429:
       return 'Hiciste demasiadas consultas. Intenta de nuevo en unos segundos.';
-    case 501:
-      return 'La consulta todavía no está disponible.';
+    case 403:
+      return 'No pudimos validar la verificación de seguridad. Resuélvela de nuevo e inténtalo otra vez.';
+    case 503:
+      return 'El servicio de consulta no está disponible por el momento. Intenta más tarde.';
     default:
       return 'No se pudo completar la consulta. Intenta más tarde.';
   }

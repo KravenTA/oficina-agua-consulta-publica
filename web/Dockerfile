@@ -23,6 +23,8 @@ RUN addgroup --system app && adduser --system --ingroup app app
 COPY --from=build --chown=app:app /app/public ./public
 COPY --from=build --chown=app:app /app/.next/standalone ./
 COPY --from=build --chown=app:app /app/.next/static ./.next/static
+# Reemplaza X-Forwarded-For por la IP real de la conexion (ver el comentario dentro del archivo).
+COPY --from=build --chown=app:app /app/ip-del-socket.cjs ./ip-del-socket.cjs
 USER app
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["node", "--require", "./ip-del-socket.cjs", "server.js"]
