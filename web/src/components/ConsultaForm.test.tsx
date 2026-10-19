@@ -18,9 +18,33 @@ vi.mock('./Captcha', () => ({
   ),
 }));
 
-function respuesta(status: number) {
-  return Promise.resolve(new Response('{}', { status }));
+function respuesta(status: number, cuerpo: unknown = {}, cabeceras?: HeadersInit) {
+  return Promise.resolve(new Response(JSON.stringify(cuerpo), { status, headers: cabeceras }));
 }
+
+const ESTADO_CUENTA = {
+  contador: { numeroSerie: 'CTR-0001', tipoServicio: 'media_paja' },
+  cliente: { nombreParcial: 'María L*** G***' },
+  recibos: [
+    {
+      numero: '000124',
+      periodo: { anio: 2026, mes: 9 },
+      fechaEmision: '2026-09-01',
+      fechaVencimiento: '2026-09-30',
+      total: 45,
+      estado: 'VENCIDO',
+    },
+    {
+      numero: '000101',
+      periodo: { anio: 2026, mes: 8 },
+      fechaEmision: '2026-08-01',
+      fechaVencimiento: '2026-08-31',
+      total: 90,
+      estado: 'PAGADO',
+    },
+  ],
+  resumen: { totalEmitido: 135, totalPagado: 90, totalPendiente: 45, recibosPendientes: 0, recibosVencidos: 1 },
+};
 
 describe('ConsultaForm', () => {
   const fetchMock = vi.fn();
@@ -114,7 +138,7 @@ describe('ConsultaForm', () => {
 
   it('envia el codigo y el token, y reinicia el captcha', async () => {
     const usuario = userEvent.setup();
-    fetchMock.mockReturnValue(respuesta(200));
+    fetchMock.mockReturnValue(respuesta(200, ESTADO_CUENTA));
     render(<ConsultaForm provider="recaptcha" siteKey="k" />);
     await usuario.type(campo(), '  ctr-0001 ');
     await usuario.click(screen.getByText('resolver-captcha'));
@@ -126,10 +150,48 @@ describe('ConsultaForm', () => {
     expect(url).toBe('/api/consulta');
     expect(opciones.method).toBe('POST');
     expect(JSON.parse(opciones.body)).toEqual({ numeroSerie: 'ctr-0001', captchaToken: 'token-123' });
-    expect(await screen.findByText(/consulta realizada/i)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /estado de cuenta/i })).toBeInTheDocument();
+    expect(screen.getByText('María L*** G***')).toBeInTheDocument();
+  });
+
+  it('al consultar otro codigo vuelve al formulario limpio, con el captcha reiniciado y el boton bloqueado', async () => {
+    const usuario = userEvent.setup();
+    fetchMock.mockReturnValue(respuesta(200, ESTADO_CUENTA));
+    render(<ConsultaForm provider="recaptcha" siteKey="k" />);
+    await usuario.type(campo(), 'CTR-0001');
+    await usuario.click(screen.getByText('resolver-captcha'));
+    await usuario.click(boton());
+    await usuario.click(await screen.findByRole('button', { name: /consultar otro código/i }));
+
+    expect(campo()).toHaveValue('');
     // El token es de un solo uso: el captcha se reinicia y el boton vuelve a bloquearse.
-    expect(screen.getByTestId('captcha')).toHaveAttribute('data-reset', '1');
+    expect(Number(screen.getByTestId('captcha').getAttribute('data-reset'))).toBeGreaterThan(0);
     expect(boton()).toBeDisabled();
+  });
+
+  it('si el servidor responde 200 con un cuerpo inesperado muestra un error y no un estado de cuenta roto', async () => {
+    const usuario = userEvent.setup();
+    fetchMock.mockReturnValue(respuesta(200, { cualquier: 'cosa' }));
+    render(<ConsultaForm provider="recaptcha" siteKey="k" />);
+    await usuario.type(campo(), 'CTR-0001');
+    await usuario.click(screen.getByText('resolver-captcha'));
+
+    await usuario.click(boton());
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/no se pudo completar/i);
+    expect(screen.queryByRole('heading', { name: /estado de cuenta/i })).not.toBeInTheDocument();
+  });
+
+  it('en un 429 indica cuantos segundos esperar segun Retry-After', async () => {
+    const usuario = userEvent.setup();
+    fetchMock.mockReturnValue(respuesta(429, {}, { 'Retry-After': '45' }));
+    render(<ConsultaForm provider="recaptcha" siteKey="k" />);
+    await usuario.type(campo(), 'CTR-0001');
+    await usuario.click(screen.getByText('resolver-captcha'));
+
+    await usuario.click(boton());
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/intenta de nuevo en 45 segundos/i);
   });
 
   it.each([

@@ -2,9 +2,11 @@
 
 import { useId, useState, type FormEvent } from 'react';
 
+import { esEstadoCuenta, type EstadoCuenta } from '@/lib/estado-cuenta';
 import { validarSerie } from '@/lib/validacion';
 
 import { Captcha, type CaptchaProvider } from './Captcha';
+import { EstadoCuentaVista } from './EstadoCuentaVista';
 
 type Props = {
   provider: CaptchaProvider;
@@ -15,17 +17,21 @@ type Props = {
 type Estado =
   | { tipo: 'inactivo' }
   | { tipo: 'enviando' }
-  | { tipo: 'ok' }
+  | { tipo: 'ok'; datos: EstadoCuenta }
   | { tipo: 'error'; mensaje: string };
 
-function mensajeDeError(status: number): string {
+function mensajeDeError(status: number, retryAfter: string | null = null): string {
   switch (status) {
     case 400:
       return 'El código ingresado no es válido.';
     case 404:
       return 'No encontramos un contador con ese código.';
-    case 429:
-      return 'Hiciste demasiadas consultas. Intenta de nuevo en unos segundos.';
+    case 429: {
+      const segundos = Number.parseInt(retryAfter ?? '', 10);
+      return segundos > 0
+        ? `Hiciste demasiadas consultas. Intenta de nuevo en ${segundos} ${segundos === 1 ? 'segundo' : 'segundos'}.`
+        : 'Hiciste demasiadas consultas. Intenta de nuevo en unos segundos.';
+    }
     case 403:
       return 'No pudimos validar la verificación de seguridad. Resuélvela de nuevo e inténtalo otra vez.';
     case 503:
@@ -71,7 +77,16 @@ export function ConsultaForm({ provider, siteKey }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ numeroSerie: resultado.valor, captchaToken: token }),
       });
-      setEstado(respuesta.ok ? { tipo: 'ok' } : { tipo: 'error', mensaje: mensajeDeError(respuesta.status) });
+      if (!respuesta.ok) {
+        setEstado({ tipo: 'error', mensaje: mensajeDeError(respuesta.status, respuesta.headers.get('Retry-After')) });
+      } else {
+        const datos: unknown = await respuesta.json().catch(() => null);
+        setEstado(
+          esEstadoCuenta(datos)
+            ? { tipo: 'ok', datos }
+            : { tipo: 'error', mensaje: mensajeDeError(502) },
+        );
+      }
     } catch {
       setEstado({ tipo: 'error', mensaje: 'No hay conexión con el servidor. Intenta de nuevo.' });
     } finally {
@@ -79,6 +94,18 @@ export function ConsultaForm({ provider, siteKey }: Props) {
       setToken(null);
       setResetKey((n) => n + 1);
     }
+  }
+
+  function nuevaConsulta() {
+    setSerie('');
+    setTocado(false);
+    setToken(null);
+    setResetKey((n) => n + 1);
+    setEstado({ tipo: 'inactivo' });
+  }
+
+  if (estado.tipo === 'ok') {
+    return <EstadoCuentaVista datos={estado.datos} onNuevaConsulta={nuevaConsulta} />;
   }
 
   return (
@@ -139,11 +166,6 @@ export function ConsultaForm({ provider, siteKey }: Props) {
       {estado.tipo === 'error' && (
         <p className="mensaje mensaje--error" role="alert">
           {estado.mensaje}
-        </p>
-      )}
-      {estado.tipo === 'ok' && (
-        <p className="mensaje mensaje--ok" role="status">
-          Consulta realizada.
         </p>
       )}
     </form>
